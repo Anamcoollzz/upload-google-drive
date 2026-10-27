@@ -73,9 +73,11 @@ function authorizeInBrowser(oAuth2Client) {
   return new Promise((resolve, reject) => {
     const server = http.createServer(async (req, res) => {
       try {
-        if (req.url.startsWith('/oauth2callback')) {
-          const queryObject = url.parse(req.url, true).query;
-          if (queryObject.code) {
+        const parsedUrl = new URL(req.url, 'http://localhost:3000');
+        if (parsedUrl.pathname === '/oauth2callback') {
+          const code = parsedUrl.searchParams.get('code');
+          const error = parsedUrl.searchParams.get('error');
+          if (code) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(`
               <div style="font-family: sans-serif; text-align: center; padding: 50px;">
@@ -86,17 +88,17 @@ function authorizeInBrowser(oAuth2Client) {
 
             server.close();
 
-            const { tokens } = await oAuth2Client.getToken(queryObject.code);
+            const { tokens } = await oAuth2Client.getToken(code);
             oAuth2Client.setCredentials(tokens);
             fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
             console.log(' Token berhasil dibuat dan disimpan di token.json!\n');
 
             resolve(oAuth2Client);
-          } else if (queryObject.error) {
+          } else if (error) {
             res.writeHead(400, { 'Content-Type': 'text/plain' });
-            res.end(`Gagal autentikasi: ${queryObject.error}`);
+            res.end(`Gagal autentikasi: ${error}`);
             server.close();
-            reject(new Error(`Login dibatalkan atau ditolak: ${queryObject.error}`));
+            reject(new Error(`Login dibatalkan atau ditolak: ${error}`));
           }
         }
       } catch (err) {

@@ -116,6 +116,27 @@ async function uploadSingleFile(drive, fileInfo, parentId = null) {
 }
 
 /**
+ * Mengunggah satu file dengan retry otomatis jika terkena rate limit (429) atau server error (5xx).
+ */
+async function uploadSingleFileWithRetry(drive, fileInfo, parentId = null, maxRetries = 3) {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await uploadSingleFile(drive, fileInfo, parentId);
+    } catch (err) {
+      attempt++;
+      const status = err.status || err.code;
+      if ((status === 429 || (status >= 500 && status < 600)) && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else if (attempt >= maxRetries) {
+        throw err;
+      }
+    }
+  }
+}
+
+/**
  * Mengunggah folder secara rekursif ke Google Drive.
  */
 async function uploadFolder(drive, localFolderPath, targetParentId = null, options = {}) {
@@ -150,7 +171,6 @@ async function uploadFolder(drive, localFolderPath, targetParentId = null, optio
   console.log(` Folder utama siap (ID: ${rootDriveFolder.id})\n`);
 
   // Map untuk menyimpan relPath lokal -> Drive Folder ID
-  // Contoh: "" -> rootDriveFolder.id, "subfolder" -> "123abcId"
   const folderIdMap = new Map();
   folderIdMap.set('', rootDriveFolder.id);
 
@@ -165,31 +185,43 @@ async function uploadFolder(drive, localFolderPath, targetParentId = null, optio
     folderIdMap.set(folder.relPath, createdFolder.id);
   }
 
-  // 3. Upload seluruh file satu per satu
-  console.log('\n Mengunggah file...');
+  // 3. Upload file secara paralel (Concurrent Worker Pool)
+  const concurrency = parseInt(options.concurrency, 10) || 6;
+  const activeWorkers = Math.min(concurrency, fileList.length);
+
+  console.log(`\n🚀 Mengunggah file secara paralel (${activeWorkers} file sekaligus)...`);
+
   let uploadedBytes = 0;
   let successCount = 0;
   let failCount = 0;
+  let nextIndex = 0;
+  let completedCount = 0;
 
-  for (let i = 0; i < fileList.length; i++) {
-    const file = fileList[i];
-    const targetFolderId = folderIdMap.get(file.dirRelative) || rootDriveFolder.id;
-    const progressPercent = Math.round(((i + 1) / fileList.length) * 100);
+  async function worker() {
+    while (nextIndex < fileList.length) {
+      const i = nextIndex++;
+      const file = fileList[i];
+      const targetFolderId = folderIdMap.get(file.dirRelative) || rootDriveFolder.id;
 
-    process.stdout.write(
-      `  [${i + 1}/${fileList.length} - ${progressPercent}%] Uploading: ${file.relPath} (${formatBytes(file.size)})... `
-    );
-
-    try {
-      await uploadSingleFile(drive, file, targetFolderId);
-      uploadedBytes += file.size;
-      successCount++;
-      process.stdout.write('✓ OK\n');
-    } catch (err) {
-      failCount++;
-      process.stdout.write(`✗ GAGAL (${err.message})\n`);
+      try {
+        await uploadSingleFileWithRetry(drive, file, targetFolderId);
+        uploadedBytes += file.size;
+        successCount++;
+        completedCount++;
+        const percent = Math.round((completedCount / fileList.length) * 100);
+        console.log(`  ✓ [${completedCount}/${fileList.length} - ${percent}%] ${file.relPath} (${formatBytes(file.size)})`);
+      } catch (err) {
+        failCount++;
+        completedCount++;
+        const percent = Math.round((completedCount / fileList.length) * 100);
+        console.error(`  ✗ [${completedCount}/${fileList.length} - ${percent}%] GAGAL: ${file.relPath} (${err.message})`);
+      }
     }
   }
+
+  // Jalankan pool worker
+  const workers = Array.from({ length: activeWorkers }, () => worker());
+  await Promise.all(workers);
 
   const durationSec = Math.round((Date.now() - startTime) / 1000);
 

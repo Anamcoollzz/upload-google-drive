@@ -10,6 +10,7 @@ async function main() {
 
   let targetFolder = process.argv[2];
   let parentDriveId = process.argv[3] || null;
+  let concurrency = process.argv[4] ? parseInt(process.argv[4], 10) : 6;
 
   // Jika user tidak memasukkan argumen lewat CLI, minta input secara interaktif
   if (!targetFolder) {
@@ -19,10 +20,14 @@ async function main() {
     });
 
     try {
-      targetFolder = await rl.question(' Masukkan path folder yang ingin diupload: ');
-      const inputDriveId = await rl.question(' Masukkan ID Folder Google Drive tujuan (tekan Enter untuk My Drive): ');
+      targetFolder = await rl.question('📁 Masukkan path folder yang ingin diupload: ');
+      const inputDriveId = await rl.question('🆔 Masukkan ID Folder Google Drive tujuan (tekan Enter untuk My Drive): ');
       if (inputDriveId.trim()) {
         parentDriveId = inputDriveId.trim();
+      }
+      const inputConcurrency = await rl.question('⚡ Jumlah upload paralel sekaligus (default: 6, tekan Enter): ');
+      if (inputConcurrency.trim() && !isNaN(inputConcurrency)) {
+        concurrency = parseInt(inputConcurrency.trim(), 10);
       }
     } finally {
       rl.close();
@@ -33,13 +38,13 @@ async function main() {
   targetFolder = targetFolder.trim().replace(/^["']|["']$/g, '');
 
   if (!targetFolder) {
-    console.error(' Error: Path folder tidak boleh kosong.');
+    console.error('❌ Error: Path folder tidak boleh kosong.');
     process.exit(1);
   }
 
   try {
     const drive = await getDriveClient();
-    await uploadFolder(drive, targetFolder, parentDriveId);
+    await uploadFolder(drive, targetFolder, parentDriveId, { concurrency });
   } catch (error) {
     console.error('\n Terjadi Kesalahan:');
     console.error(error.message);

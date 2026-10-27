@@ -68,11 +68,11 @@ Aplikasi akan menanyakan:
 Anda bisa langsung memberikan path folder yang ingin diupload:
 
 ```bash
-# Upload ke Root Google Drive (My Drive)
-npm run upload -- "C:\Users\NamaAnda\Documents\Laporan-2026"
+# Upload ke Root Google Drive (My Drive) dengan default 6 thread paralel
+node index.js "C:\Users\NamaAnda\Documents\Laporan-2026"
 
-# Atau jika ingin dimasukkan ke dalam folder Google Drive tertentu:
-npm run upload -- "C:\Users\NamaAnda\Documents\Laporan-2026" "ID_FOLDER_GDRIVE"
+# Upload ke folder Google Drive tertentu dengan paralel 8 thread sekaligus
+node index.js "C:\Users\NamaAnda\Documents\Laporan-2026" "ID_FOLDER_GDRIVE" 8
 ```
 
 > **Tips Menemukan ID Folder Google Drive:**  
