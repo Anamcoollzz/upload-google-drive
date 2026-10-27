@@ -1,0 +1,8 @@
+node_modules/
+credentials.json
+token.json
+service-account.json
+.env
+.DS_Store
+Thumbs.db
+/images

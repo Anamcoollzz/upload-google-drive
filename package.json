@@ -1,0 +1,20 @@
+{
+  "name": "upload-google-drive",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "upload": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "googleapis": "^188.0.0",
+    "mime-types": "^3.0.2",
+    "open": "^11.0.4"
+  }
+}
